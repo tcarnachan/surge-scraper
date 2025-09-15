@@ -1,41 +1,11 @@
-import os
-from urllib import request, parse
+import json
 from bs4 import BeautifulSoup
 
-class Scraper:
-    def __init__(self, base_url, res_path):
-        self.base_url = base_url
-        self.res_path = res_path
-
-    # Fetches a page, either from local cache or from the web
-    def get_page(self, url_path):
-        filename = url_path.strip('/').replace('/', '_') + '.html'
-        filepath = os.path.join(self.res_path, filename)
-
-        # Check if file already exists
-        if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
-                content = f.read()
-            print(f"Loaded from cache: {filepath}")
-        # Otherwise, fetch and save it
-        else:
-            content = self.__fetch_page(url_path)
-            print(f"Fetched and saved: {filepath}")
-            if not os.path.exists(self.res_path):
-                os.makedirs(self.res_path)
-            with open(filepath, 'w') as f:
-                f.write(content)
-        return content
-
-    # Internal method to fetch a page
-    def __fetch_page(self, url_path):
-        full_url = parse.urljoin(self.base_url, url_path)
-        response = request.urlopen(full_url)
-        return response.read().decode('utf-8')
+from scraper import Scraper
 
 # Returns a list of relative urls from the conditions page
 def get_condition_links(scraper):
-    content = scraper.get_page('conditions')
+    content = scraper.get_page('conditions').content
     soup = BeautifulSoup(content, 'html.parser')
     # Set because e.g. Anaemia and Iron defeciency both link to the same page
     links = set()
@@ -47,4 +17,11 @@ def get_condition_links(scraper):
     return list(links)
 
 scraper = Scraper(base_url="https://www.nhs.uk/", res_path="res/nhs")
-print(len(get_condition_links(scraper)))
+condition_links = get_condition_links(scraper)
+page_types = { 'directory': [], 'single': [], 'multi': [] }
+for link in condition_links:
+    page = scraper.get_page(link)
+    page_types[page.get_page_type()].append(link)
+
+with open('res/nhs/page_types.json', 'w') as f:
+    json.dump(page_types, f, indent=2)
